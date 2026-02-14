@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Friends Chat Pro</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+*{box-sizing:border-box}
+html,body{
+margin:0;
+height:100%;
+font-family:Segoe UI, sans-serif;
+background:#e5ddd5;
+}
+
+#nameScreen{
+height:100vh;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+background:linear-gradient(135deg,#1a237e,#3949ab);
+color:white;
+}
+
+#nameScreen input{
+width:80%;
+padding:15px;
+border-radius:25px;
+border:none;
+font-size:16px;
+margin-top:20px;
+}
+
+#nameScreen button{
+width:80%;
+padding:15px;
+border-radius:25px;
+border:none;
+margin-top:15px;
+background:white;
+color:#1a237e;
+font-weight:bold;
+cursor:pointer;
+}
+
+#chatScreen{
+display:none;
+flex-direction:column;
+height:100vh;
+}
+
+#chatHeader{
+background:#1a237e;
+color:white;
+padding:15px;
+font-weight:bold;
+text-align:center;
+}
+
+#chatContainer{
+flex:1;
+overflow-y:auto;
+padding:15px;
+display:flex;
+flex-direction:column;
+}
+
+.message{
+padding:10px 15px;
+margin:6px 0;
+border-radius:20px;
+max-width:75%;
+font-size:14px;
+word-wrap:break-word;
+box-shadow:0 2px 5px rgba(0,0,0,0.1);
+animation:fadeIn .2s ease-in-out;
+}
+
+.me{
+background:#dcf8c6;
+align-self:flex-end;
+border-bottom-right-radius:5px;
+}
+
+.friend{
+background:white;
+align-self:flex-start;
+border-bottom-left-radius:5px;
+}
+
+#inputArea{
+display:flex;
+padding:10px;
+background:#f0f0f0;
+align-items:center;
+}
+
+#messageInput{
+flex:1;
+padding:12px;
+border-radius:25px;
+border:1px solid #ccc;
+outline:none;
+}
+
+#sendBtn{
+margin-left:8px;
+padding:12px 18px;
+border:none;
+border-radius:50%;
+background:#1a237e;
+color:white;
+cursor:pointer;
+font-size:16px;
+}
+
+#imageInput{display:none}
+
+#imageBtn{
+margin-left:8px;
+font-size:20px;
+cursor:pointer;
+}
+
+img{
+max-width:100%;
+border-radius:12px;
+margin-top:5px;
+}
+
+@keyframes fadeIn{
+from{opacity:0;transform:translateY(5px)}
+to{opacity:1;transform:translateY(0)}
+}
+</style>
+</head>
+
+<body>
+
+<div id="nameScreen">
+<h2>Friends Chat</h2>
+<input type="text" id="userName" placeholder="Enter your name">
+<button onclick="enterChat()">Enter Chat</button>
+</div>
+
+<div id="chatScreen">
+<div id="chatHeader">💬 Live Chat</div>
+<div id="chatContainer"></div>
+
+<div id="inputArea">
+<input type="text" id="messageInput" placeholder="Type your message...">
+<button id="sendBtn">➤</button>
+<label id="imageBtn" for="imageInput">📷</label>
+<input type="file" id="imageInput" accept="image/*">
+</div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyD2QPXYf9K8YHkKLcDP9a7phFeAuGPPgDc",
+  authDomain: "friends-chat-40b5d.firebaseapp.com",
+  projectId: "friends-chat-40b5d",
+  storageBucket: "friends-chat-40b5d.appspot.com",
+  messagingSenderId: "409258273020",
+  appId: "1:409258273020:web:f29dd0fbe7b95054ac8f79"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let currentUser="";
+let firstLoad=true;
+
+// 🔔 Request notification permission
+function requestNotificationPermission(){
+if("Notification" in window){
+Notification.requestPermission();
+}
+}
+
+function showNotification(title, body){
+if(Notification.permission === "granted"){
+new Notification(title,{
+body: body,
+icon: "https://cdn-icons-png.flaticon.com/512/1384/1384023.png"
+});
+}
+}
+
+function enterChat(){
+const name=document.getElementById("userName").value.trim();
+if(name){
+currentUser=name;
+document.getElementById("nameScreen").style.display="none";
+document.getElementById("chatScreen").style.display="flex";
+requestNotificationPermission();
+}
+}
+
+document.getElementById("sendBtn").onclick=sendMessage;
+document.getElementById("messageInput").addEventListener("keypress",e=>{
+if(e.key==="Enter") sendMessage();
+});
+
+function sendMessage(){
+const text=document.getElementById("messageInput").value.trim();
+if(text){
+db.collection("messages").add({
+name:currentUser,
+message:text,
+timestamp:firebase.firestore.FieldValue.serverTimestamp()
+});
+document.getElementById("messageInput").value="";
+}
+}
+
+document.getElementById("imageInput").addEventListener("change",function(e){
+const file=e.target.files[0];
+if(file){
+const reader=new FileReader();
+reader.onload=function(event){
+db.collection("messages").add({
+name:currentUser,
+message:"<img src='"+event.target.result+"'>",
+timestamp:firebase.firestore.FieldValue.serverTimestamp()
+});
+};
+reader.readAsDataURL(file);
+}
+});
+
+db.collection("messages").orderBy("timestamp")
+.onSnapshot(snapshot=>{
+const chat=document.getElementById("chatContainer");
+
+if(firstLoad){
+chat.innerHTML="";
+firstLoad=false;
+}
+
+snapshot.docChanges().forEach(change=>{
+if(change.type==="added"){
+const data=change.doc.data();
+const div=document.createElement("div");
+div.classList.add("message");
+div.classList.add(data.name===currentUser?"me":"friend");
+div.innerHTML="<b>"+data.name+":</b> "+data.message;
+chat.appendChild(div);
+chat.scrollTop=chat.scrollHeight;
+
+// 🔔 Notification only if not you and page not active
+if(data.name!==currentUser && document.hidden){
+showNotification("New message from "+data.name, data.message);
+}
+}
+});
+});
+</script>
+
+</body>
+</html>
