@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Friends Chat Online</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+/* ---- ملء كامل الشاشة لجميع الأجهزة ---- */
+html, body { margin:0; padding:0; height:100%; width:100%; font-family:'Segoe UI', sans-serif; }
+body { display:flex; flex-direction:column; background-color:#ffe4e1; }
+
+/* ---- شاشة إدخال الاسم ---- */
+#nameScreen { height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+#nameScreen input { width:80%; padding:15px; font-size:16px; border-radius:20px; border:1px solid #ccc; margin-bottom:20px; box-sizing:border-box; }
+#nameScreen button { width:80%; padding:15px; font-size:16px; border-radius:20px; border:none; background:#ff6f91; color:white; cursor:pointer; }
+
+/* ---- شاشة الدردشة ---- */
+#chatScreen { display:none; flex-direction:column; height:100vh; width:100%; }
+#controlPanel { padding:10px; background-color:#fff0f5; border-bottom:2px solid #f5c6cb; display:flex; align-items:center; justify-content:flex-start; }
+#chatContainer { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; background-color:#fffaf0; scroll-behavior:smooth; }
+.message { margin:6px 0; padding:12px 16px; border-radius:20px; max-width:80%; word-wrap:break-word; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+.me { background-color:#ffb6c1; align-self:flex-end; }
+.friend { background-color:#ffc0cb; align-self:flex-start; }
+
+/* ---- لوحة إدخال الرسائل ---- */
+#inputContainer { display:flex; padding:10px; background-color:#fff0f5; border-top:2px solid #f5c6cb; align-items:center; }
+#messageInput { flex:1; padding:12px; border-radius:20px; border:1px solid #ccc; font-size:15px; box-sizing:border-box; }
+#sendBtn { padding:10px 18px; margin-left:8px; border-radius:20px; border:none; background-color:#ff6f91; color:white; cursor:pointer; font-weight:bold; }
+#sendBtn:hover { background-color:#ff3c6e; }
+
+/* ---- زر رفع الصور جذاب ---- */
+#imageLabel { cursor:pointer; margin-left:8px; padding:10px 14px; background:#ff6f91; color:white; border-radius:15px; font-size:18px; display:flex; align-items:center; justify-content:center; }
+#imageLabel:hover { background:#ff3c6e; }
+#imageInput { display:none; }
+
+img.chat-img { max-width:100%; border-radius:15px; margin-top:5px; }
+</style>
+</head>
+
+<body>
+
+<!-- شاشة إدخال الاسم -->
+<div id="nameScreen">
+  <h2>Enter your name to start chatting</h2>
+  <input type="text" id="userNameInput" placeholder="Your name...">
+  <button id="enterBtn">Enter Chat</button>
+</div>
+
+<!-- شاشة الدردشة -->
+<div id="chatScreen">
+  <div id="controlPanel">
+    Background color:
+    <input type="color" id="bgColorPicker" value="#ffe4e1">
+  </div>
+
+  <div id="chatContainer"></div>
+
+  <div id="inputContainer">
+    <input type="text" id="messageInput" placeholder="Type your message...">
+    <button id="sendBtn">Send</button>
+    <label id="imageLabel" for="imageInput">📷</label>
+    <input type="file" id="imageInput" accept="image/*">
+  </div>
+</div>
+
+<script>
+// ---- إعداد Firebase تجريبي ----
+const firebaseConfig = {
+  apiKey: "AIzaSyD3jZ0FqY_hz8dR3hUxxxxxx",
+  authDomain: "chat-demo-12345.firebaseapp.com",
+  projectId: "chat-demo-12345",
+  storageBucket: "chat-demo-12345.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef123456"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ---- الموقع ----
+let userName = "";
+const nameScreen = document.getElementById('nameScreen');
+const chatScreen = document.getElementById('chatScreen');
+const enterBtn = document.getElementById('enterBtn');
+const userNameInput = document.getElementById('userNameInput');
+const chatContainer = document.getElementById('chatContainer');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+const imageInput = document.getElementById('imageInput');
+const bgColorPicker = document.getElementById('bgColorPicker');
+
+enterBtn.addEventListener('click', () => {
+  const name = userNameInput.value.trim();
+  if(name){ userName = name; nameScreen.style.display='none'; chatScreen.style.display='flex'; }
+});
+
+function sendMessage(content){
+  db.collection("messages").add({
+    name:userName,
+    message:content,
+    timestamp:firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+sendBtn.addEventListener('click', () => {
+  const text = messageInput.value.trim();
+  if(text){ sendMessage(text); messageInput.value=''; }
+});
+
+messageInput.addEventListener('keypress', e => { if(e.key==='Enter') sendBtn.click(); });
+
+imageInput.addEventListener('change', event => {
+  const file = event.target.files[0];
+  if(file){
+    const reader = new FileReader();
+    reader.onload = e => sendMessage(`<img src='${e.target.result}' class='chat-img'>`);
+    reader.readAsDataURL(file);
+    imageInput.value='';
+  }
+});
+
+bgColorPicker.addEventListener('input', () => { document.body.style.backgroundColor = bgColorPicker.value; });
+
+// ---- استلام الرسائل مباشرة ----
+db.collection("messages").orderBy("timestamp")
+  .onSnapshot(snapshot => {
+    chatContainer.innerHTML = "";
+    snapshot.forEach(doc=>{
+      const data=doc.data();
+      const msgDiv=document.createElement('div');
+      msgDiv.classList.add('message', data.name===userName?'me':'friend');
+      msgDiv.innerHTML=`<strong>${data.name}:</strong> ${data.message}`;
+      chatContainer.appendChild(msgDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    });
+  });
+</script>
+
+</body>
+</html>
